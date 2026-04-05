@@ -43,3 +43,25 @@ Entender cómo funciona un agente desde cero:
 ## Estado del proyecto
 
 Proyecto educativo en desarrollo.
+
+## Evolución del agente
+
+La primera versión del agente estaba completamente controlada por el modelo (LLM-driven),
+donde el LLM decidía qué herramientas utilizar y cuándo finalizar el proceso.
+
+Durante el desarrollo se identificaron limitaciones en este enfoque:
+
+- dificultad en tareas multi-step
+- comportamiento inconsistente del modelo
+- dependencia excesiva del LLM para el flujo
+
+La versión actual introduce un cambio clave:
+
+### Nuevo enfoque: State-driven
+
+- uso de un estado explícito (`AgentState`)
+- control del flujo desde backend
+- ejecución determinista de herramientas
+- el LLM se utiliza únicamente para generar la respuesta final
+
+Este cambio mejora la robustez, control y escalabilidad del sistema.
