@@ -4,6 +4,7 @@ from tools.market_tools import get_eth_price_usd
 from tools.wallet_tools import get_wallet_balance
 import re
 from tools.math_tools import multiply_numbers
+from services.state import AgentState
 
 
 def extract_eth_amount(text):
@@ -17,81 +18,45 @@ def extract_eth_amount(text):
 
 
 def run_agent(query):
-    messages = [
-        {"role": "user", "content": query}
-    ]
+    state = AgentState(query)
+    state.amount = extract_eth_amount(query)
 
-    max_steps = 5
-    step = 0
-    last_tool_name = None
-    eth_amount = extract_eth_amount(query)
-    last_price = None
-    used_multiply = False
+    # Validación inicial
+    if state.amount is None:
+        return "Could not extract ETH amount from query."
 
-    while step < max_steps:
-        step += 1
+    # LOOP controlado por backend
+    while not state.reached_limit():
+        state.increment_step()
 
-        response = ask_llm(messages, tools)
-        message = response["message"]
+        print(f"\n--- STEP {state.step_count} ---")
+        print(f"STATE: amount={state.amount}, price={state.eth_price}, result={state.result}")
 
-        if "tool_calls" in message:
-            print("\n--- NEW LOOP ---")
-            print("Model message:", message)
+        # 1. Obtener precio si falta
+        if state.eth_price is None:
+            print("→ Getting ETH price...")
+            price = get_eth_price_usd()
+            state.eth_price = price
+            continue
 
-            tool_call = message["tool_calls"][0]
-            name = tool_call["function"]["name"]
-            args = tool_call["function"]["arguments"]
+        # 2. Calcular resultado si falta
+        if state.result is None:
+            print("→ Calculating result...")
+            result = multiply_numbers(state.amount, state.eth_price)
+            state.result = result
+            continue
 
-            if name == last_tool_name:
-                return f"Agent stopped: repeated tool call detected ({name})"
+        # 3. Si todo está listo → salir del loop
+        break
 
-            if name == "get_eth_price":
-                result = get_eth_price_usd()
-                last_price = result
-            elif name == "get_wallet_balance":
-                result = get_wallet_balance(args.get("address"))
-            elif name == "multiply_numbers":
-                result = multiply_numbers(args.get("a"), args.get("b"))
-                used_multiply = True
-            else:
-                result = "Unknown tool"
+    # Generar respuesta final con LLM
+    final_prompt = (
+        f"The user asked: {state.user_query}. "
+        f"The result is: {state.amount} ETH = ${state.result:.2f} USD. "
+        f"Respond clearly."
+    )
 
-            print(f"Tool selected: {name}")
-            print(f"Arguments: {args}")
-            print(f"Tool result: {result}")
+    messages = [{"role": "user", "content": final_prompt}]
+    response = ask_llm(messages, tools)
 
-            last_tool_name = name
-
-            messages.append(message)
-            messages.append({
-                "role": "function",
-                "name": name,
-                "content": f"{result}"
-            })
-            if name == "get_eth_price" and eth_amount is not None:
-                messages.append({
-                    "role": "user",
-                    "content": (
-                        f"The question is: {query}. You got ETH price {result}. "
-                        f"Now calculate {eth_amount} ETH in USD using multiply_numbers(a={eth_amount}, b={result})."
-                    )
-                })
-            else:
-                messages.append({
-                    "role": "user",
-                    "content": "Continue solving the original question. If a calculation is needed, use the multiply_numbers tool."
-                })
-
-        else:
-            # Fallback: si el modelo no hace segunda tool call, hacemos el cálculo final
-            if (
-                last_tool_name == "get_eth_price"
-                and eth_amount is not None
-                and last_price is not None
-                and not used_multiply
-            ):
-                final_value = multiply_numbers(eth_amount, last_price)
-                return f"{eth_amount} ETH is ${final_value:.2f} USD (calculated with multiply_numbers)."
-            return message.get("content", "") or "Agent finished without content."
-
-    return "Agent stopped: max steps reached."
+    return response["message"].get("content", f"{state.amount} ETH = ${state.result:.2f} USD")
