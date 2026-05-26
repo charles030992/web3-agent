@@ -1,67 +1,95 @@
-# WEB3_AGENT
+ # Enterprise LLM Workflow Agent
 
-Agente local construido en Python con arquitectura modular y LLM local mediante Ollama.
+  State-driven agent architecture for business process automation using LLMs with explicit backend control.
 
-## Qué hace
+  ## What this project demonstrates
 
-Este proyecto implementa un agente sencillo capaz de:
+  A production-oriented agent architecture where **LLMs handle language, not logic**.
 
-- consultar el precio de ETH
-- consultar balances de wallet
-- realizar cálculos simples
-- usar un modelo local para decidir qué herramienta utilizar
+  Routing, validation, and tool execution are controlled by the backend — not the model. This makes the system reliable, auditable, and scalable to enterprise environments.
 
-## Arquitectura
+  ## Architecture
 
-- `api/` → capa HTTP / FastAPI
-- `services/` → lógica del agente
-- `tools/` → herramientas disponibles
-- `main.py` → punto de entrada para pruebas
+  User input
+    → Intent classification (LLM)
+    → Data extraction
+    → Validation        ← backend, deterministic
+    → Routing           ← backend, explicit
+    → Tool execution
+    → Response generation (LLM)
+    → Fallback / Clarify if data is missing
 
-## Tecnologías
+  ### Design principles
 
-- Python
-- Ollama
-- Qwen2.5 7B Instruct
-- FastAPI
+  | Component | Responsibility |
+  |---|---|
+  | LLM | Intent parsing and response generation |
+  | Backend | Validation, routing, state management |
+  | `AgentState` | Persistent context across workflow steps |
+  | Tools | Atomic, composable business actions |
+  | Fallback/Clarify | Safety and recovery layer |
 
-## Objetivo
+  This separation means business rules live in code — not in prompts.
 
-Entender cómo funciona un agente desde cero:
+  ## Project structure
 
-- tool calling
-- orquestación
-- uso de LLM local
-- separación entre modelo, backend y herramientas
+  web3-agent/
+  ├── api/          → HTTP layer (FastAPI)
+  ├── services/     → Agent logic and orchestration
+  ├── tools/        → Action handlers (composable)
+  └── main.py       → Entry point
 
-## Cómo ejecutarlo
+  ## Stack
 
-1. Activar entorno virtual
-2. Levantar Ollama con el modelo local
-3. Ejecutar `main.py` o la API
+  - Python 3.11+
+  - FastAPI
+  - LangChain / LangGraph
+  - Ollama (local LLM — Qwen2.5 7B Instruct)
 
-## Estado del proyecto
+  ## Why state-driven, not LLM-driven
 
-Proyecto educativo en desarrollo.
+  Early versions delegated all routing to the LLM:
 
-## Evolución del agente
+  - Inconsistent behavior in multi-step workflows
+  - No control over validation or error states
+  - Business logic scattered in prompts
 
-La primera versión del agente estaba completamente controlada por el modelo (LLM-driven),
-donde el LLM decidía qué herramientas utilizar y cuándo finalizar el proceso.
+  The current architecture solves this:
 
-Durante el desarrollo se identificaron limitaciones en este enfoque:
+  - State transitions are explicit and testable
+  - LLM is a component, not the controller
+  - The pattern applies directly to enterprise workflows: document processing, fleet management, invoice automation, internal tooling
 
-- dificultad en tareas multi-step
-- comportamiento inconsistente del modelo
-- dependencia excesiva del LLM para el flujo
+  ## Applying this pattern to enterprise workflows
 
-La versión actual introduce un cambio clave:
+  The architecture is domain-agnostic. The same structure (AgentState → routing → tools → fallback) maps directly to:
 
-### Nuevo enfoque: State-driven
+  - **Document processing:** classify → extract → validate → route to action
+  - **Fleet management:** query → validate vehicle status → trigger workflow
+  - **Invoice automation:** parse PDF → extract fields → validate → generate output
+  - **Internal tooling:** intent → backend lookup → structured response
 
-- uso de un estado explícito (`AgentState`)
-- control del flujo desde backend
-- ejecución determinista de herramientas
-- el LLM se utiliza únicamente para generar la respuesta final
+  ## Running the project
 
-Este cambio mejora la robustez, control y escalabilidad del sistema.
+  ```bash
+  # 1. Activate virtual environment
+  python -m venv venv && source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+  # 2. Start local LLM
+  ollama run qwen2.5:7b-instruct
+
+  # 3. Run API
+  uvicorn api.main:app --reload
+
+  # 4. Or test directly
+  python main.py
+
+  Roadmap
+
+  - [ ] Visual architecture diagram
+  - [ ] End-to-end enterprise workflow example (document → action)
+  - [ ] Input/output JSON examples
+  - [ ] Unit tests for routing and state transitions
+  - [ ] Docker deployment
+
+  ---
