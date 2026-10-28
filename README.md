@@ -1,81 +1,127 @@
-# WEB3_AGENT
+# Enterprise LLM Workflow Agent
 
-Estado: proyecto educativo en desarrollo
+State-driven agent architecture for business process automation using LLMs with explicit backend control.
 
-Agente local en Python con arquitectura modular y un LLM local (Ollama). Dada una pregunta como *"How much is 2.35 ETH in USD?"*, el **backend** extrae la cantidad, consulta el precio real de ETH y calcula el resultado; el LLM solo redacta la respuesta final.
+Status: educational project in progress. The architecture is demonstrated today on a small ETH → USD use case; enterprise workflows (fleet, invoicing) are the next step, see the [roadmap](#roadmap).
 
-## Qué hace
+## What this project demonstrates
 
-- Extrae la cantidad de ETH de la pregunta.
-- Consulta el precio de ETH en USD (CoinGecko, sin API key).
-- Calcula el valor en dólares.
-- Pide a un modelo local (Qwen2.5 7B Instruct vía Ollama) que redacte la respuesta. Si el modelo no responde o devuelve texto vacío, se responde con el resultado calculado.
-- Expone una API HTTP (FastAPI) con las herramientas y un análisis básico de wallet.
+An agent architecture where **LLMs handle language, not logic**.
 
-## Arquitectura
+Data extraction, tool execution and the flow of the conversation are controlled by the backend — not the model. That makes the behaviour deterministic and easy to test: the same input follows the same path, and a misbehaving model cannot change the flow.
 
-- `services/agent_services.py` → flujo del agente (`run_agent`), controlado desde el backend
-- `services/state.py` → estado explícito del agente (`AgentState`)
-- `services/agent_steps.py` → pasos: extraer cantidad, obtener precio, calcular, redactar respuesta
-- `services/llm_services.py` → cliente de Ollama
-- `tools/` → herramientas (precio de ETH, balance de wallet, multiplicación) y su registro (`registry.py`)
-- `api/app.py` → API FastAPI
-- `main.py` → punto de entrada para probar el agente
-- `tests/` → tests unitarios (`unittest`, sin dependencias extra)
+## How it works today
 
-## Cómo ejecutarlo
+Given a question such as *"How much is 2.35 ETH in USD?"*:
 
-Requisitos: Python 3.11+ y [Ollama](https://ollama.com).
+```
+User input
+  → Data extraction      ← backend (parses the ETH amount)
+  → Tool execution       ← backend (live ETH price from CoinGecko, then the calculation)
+  → Response generation  ← LLM (phrases the computed result)
+```
+
+If the question has no ETH amount, the agent says so. If the model is unreachable or returns empty text, the computed result is returned directly. The LLM never decides what runs next.
+
+## Target architecture
+
+The pattern is meant to grow into a fuller workflow. Not implemented yet:
+
+```
+User input → Intent classification → Data extraction → Validation → Routing
+          → Tool execution → Response generation → Fallback / Clarify if data is missing
+```
+
+### Design principles
+
+| Component | Responsibility |
+|---|---|
+| LLM | Response generation (intent parsing is planned) |
+| Backend | Extraction, tool execution, state management (validation and routing are planned) |
+| `AgentState` | Context carried across workflow steps |
+| Tools | Atomic, composable actions, listed in a registry |
+| Fallback | Recovery when the model fails or data is missing |
+
+This separation means business rules live in code, not in prompts.
+
+## Project structure
+
+```
+web3-agent/
+├── api/          → HTTP layer (FastAPI)
+├── services/     → Agent flow, state, steps, Ollama client
+├── tools/        → Actions (ETH price, wallet balance, multiplication) and their registry
+├── tests/        → Unit tests (unittest, no extra dependencies)
+└── main.py       → Entry point
+```
+
+## Stack
+
+- Python 3.11+
+- FastAPI
+- Ollama (local LLM — Qwen2.5 7B Instruct)
+- `requests`; tests with the standard library `unittest`
+
+## Why state-driven, not LLM-driven
+
+The first version delegated all routing to the LLM:
+
+- Inconsistent behaviour in multi-step workflows
+- No control over validation or error states
+- Business logic scattered in prompts
+
+The current architecture addresses this:
+
+- State transitions are explicit and testable
+- The LLM is a component, not the controller
+- The same pattern can be applied to other workflows
+
+One lesson from the way: offering tools to the model in the final step made it try to call one instead of answering, returning empty text. Since the result is already computed, that step runs without tools.
+
+## Applying this pattern to enterprise workflows
+
+The structure (`AgentState` → routing → tools → fallback) is domain-agnostic. Examples of where it would map (ideas, not implemented):
+
+- **Document processing:** classify → extract → validate → route to action
+- **Fleet management:** query → validate vehicle status → trigger workflow
+- **Invoice automation:** parse PDF → extract fields → validate → generate output
+- **Internal tooling:** intent → backend lookup → structured response
+
+## Running the project
+
+Requirements: Python 3.11+ and [Ollama](https://ollama.com).
 
 ```bash
 ollama pull qwen2.5:7b-instruct
 
 python -m venv .venv
-.venv\Scripts\activate            # en Linux/macOS: source .venv/bin/activate
+.venv\Scripts\activate            # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Con Ollama en marcha:
+With Ollama running:
 
 ```bash
-python main.py                    # pregunta de ejemplo definida en main.py
-uvicorn api.app:app --reload      # API en http://127.0.0.1:8000/docs
-python -m unittest discover -s tests -t .
+python main.py                              # runs the example question defined in main.py
+uvicorn api.app:app --reload                # API at http://127.0.0.1:8000/docs
+python -m unittest discover -s tests -t .   # tests
 ```
 
-Endpoints de la API: `GET /health`, `GET /tools`, `POST /tools/run`, `POST /analyze_wallet`, `POST /wallet/summary`.
+API endpoints: `GET /health`, `GET /tools`, `POST /tools/run`, `POST /analyze_wallet`, `POST /wallet/summary`.
 
-## Limitaciones actuales
+## Known limitations
 
-- El balance de wallet es **simulado** (siempre devuelve `2.35 ETH`); el modo real no está implementado.
-- El agente solo entiende preguntas con una cantidad en ETH (por ejemplo `2.35 ETH`); cualquier otra pregunta recibe un mensaje indicándolo.
-- La API no expone todavía el agente; solo las herramientas y el análisis de wallet.
-- `services/tool_schema.py` es un resto de la primera versión (controlada por el LLM) y ahora no se usa.
+- The wallet balance is **simulated** (always `2.35 ETH`); real mode is not implemented.
+- The agent only understands questions that contain an ETH amount (e.g. `2.35 ETH`); anything else gets a message saying so.
+- The API does not expose the agent yet, only the tools and the wallet analysis.
+- `services/tool_schema.py` is left over from the first (LLM-driven) version and is currently unused.
 
-## Objetivo
+## Roadmap
 
-Entender cómo funciona un agente desde cero:
-
-- tool calling
-- orquestación
-- uso de LLM local
-- separación entre modelo, backend y herramientas
-
-## Evolución del agente
-
-La primera versión estaba completamente controlada por el modelo (LLM-driven): el LLM decidía qué herramientas usar y cuándo terminar.
-
-Durante el desarrollo se identificaron limitaciones en ese enfoque:
-
-- dificultad en tareas multi-step
-- comportamiento inconsistente del modelo
-- dependencia excesiva del LLM para el flujo
-
-La versión actual es **state-driven**:
-
-- uso de un estado explícito (`AgentState`)
-- control del flujo desde backend
-- ejecución determinista de herramientas
-- el LLM se utiliza únicamente para generar la respuesta final
-
-Un detalle aprendido por el camino: al ofrecer herramientas al modelo en el paso final, intentaba llamar a una en vez de responder y devolvía texto vacío. Como el resultado ya está calculado, ese paso se hace sin herramientas.
+- [x] Unit tests for the steps, the LLM fallbacks and the tool registry
+- [ ] Unit tests for routing and state transitions
+- [ ] Intent classification, validation and clarify/fallback routing
+- [ ] End-to-end enterprise workflow example (document → action)
+- [ ] Input/output JSON examples
+- [ ] Visual architecture diagram
+- [ ] Docker deployment
