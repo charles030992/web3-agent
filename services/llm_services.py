@@ -34,6 +34,7 @@ def ask_llm(messages, tools=None):
     if tools:
         payload["tools"] = tools
 
-    response = requests.post(OLLAMA_URL, json=payload)
+    response = requests.post(OLLAMA_URL, json=payload, timeout=120)
+    response.raise_for_status()
 
     return response.json()

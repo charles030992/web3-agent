@@ -1,8 +1,5 @@
-import re
-
 from services.state import AgentState
 from services.llm_services import ask_llm
-from services.tool_schema import tools
 
 from services.agent_steps import (
     extract_amount_step,
@@ -10,7 +7,6 @@ from services.agent_steps import (
     calculate_step,
     generate_response_step
 )
-
 
 
 def run_agent(query):
@@ -34,6 +30,6 @@ def run_agent(query):
     print(f"Result: {state.result}")
 
     # Nodo 4 (LLM solo para lenguaje)
-    response = generate_response_step(state, ask_llm, tools)
+    response = generate_response_step(state, ask_llm)
 
     return response

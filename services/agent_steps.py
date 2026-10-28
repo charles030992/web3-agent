@@ -20,17 +20,22 @@ def calculate_step(state):
     return state
 
 
-def generate_response_step(state, ask_llm, tools):
+def generate_response_step(state, ask_llm):
+    fallback = f"{state.amount} ETH = ${state.result:.2f} USD"
+
     final_prompt = (
         f"The user asked: {state.user_query}. "
-        f"The result is: {state.amount} ETH = ${state.result:.2f} USD. "
+        f"The result is: {fallback}. "
         f"Respond clearly."
     )
-
     messages = [{"role": "user", "content": final_prompt}]
-    response = ask_llm(messages, tools)
 
-    return response["message"].get(
-        "content",
-        f"{state.amount} ETH = ${state.result:.2f} USD"
-    )
+    # The result is already computed: the LLM only phrases it, so no tools are offered.
+    # With tools available the model tries to call one and returns empty content.
+    try:
+        response = ask_llm(messages)
+    except Exception:
+        return fallback
+
+    content = (response.get("message") or {}).get("content") or ""
+    return content.strip() or fallback

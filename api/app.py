@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Any, Dict
-from services.agent_services import list_tools, run_tool, ToolNotFoundError
+from tools.registry import list_tools, run_tool, ToolNotFoundError
 from fastapi import HTTPException
 from services.wallet_services import analyze_wallet
 from services.wallet_summary_services import wallet_summary

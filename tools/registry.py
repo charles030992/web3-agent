@@ -29,3 +29,17 @@ TOOL_DESCRIPTIONS = {
     "returns": "float",
     },
 }
+
+
+class ToolNotFoundError(Exception):
+    """Raised when a tool name is not in the registry."""
+
+
+def list_tools() -> Dict[str, Dict[str, Any]]:
+    return TOOL_DESCRIPTIONS
+
+
+def run_tool(tool_name: str, args: Dict[str, Any]) -> Any:
+    if tool_name not in TOOLS:
+        raise ToolNotFoundError(f"Tool no encontrada: {tool_name}")
+    return TOOLS[tool_name](**args)
