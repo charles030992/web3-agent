@@ -1,4 +1,5 @@
 # Enterprise LLM Workflow Agent
+[![CI](https://github.com/charles030992/web3-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/charles030992/web3-agent/actions/workflows/ci.yml)
 
 State-driven agent architecture for business process automation using LLMs with explicit backend control.
 
